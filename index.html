@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAYPOINT新莊館 期班報名與請假補課系統</title>
+    <!-- Tailwind CSS (改用標準 CSS 避免 Console 警告) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        .tab-btn.active {
+            border-bottom: 3px solid #2563eb;
+            color: #1d4ed8;
+            font-weight: bold;
+        }
+        .main-nav-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+    <!-- 頂部跑馬燈公告欄 -->
+    <div class="bg-yellow-500 text-white py-2 px-4 text-center font-medium shadow-xs flex items-center justify-center gap-2 text-xs sm:text-sm" id="announcement-bar">
+        <i class="fa-solid fa-bullhorn shrink-0"></i>
+        <span id="announcement-text">最新公告：全新期班熱烈招生中！請假補課請提早於系統填寫申請。</span>
+    </div>
+
+    <!-- 主 Header 區域 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 text-white p-2 sm:p-2.5 rounded-xl shadow-xs shrink-0">
+                        <i class="fa-solid fa-dumbbell text-xl sm:text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight">WAYPOINT新莊館</h1>
+                        <p class="text-[11px] sm:text-xs text-slate-500">期班報名 · 請假補課 · 學員服務系統</p>
+                    </div>
+                </div>
+                <!-- 移動端後台按鈕 -->
+                <button onclick="toggleAdminView()" class="sm:hidden px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg flex items-center gap-1">
+                    <i class="fa-solid fa-user-shield"></i> <span id="mobile-admin-btn-text">後台</span>
+                </button>
+            </div>
+
+            <!-- 主分頁選單 -->
+            <nav class="flex items-center gap-1 sm:gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 text-xs sm:text-sm">
+                <button id="nav-register" onclick="switchMainTab('register')" class="main-nav-btn active px-3 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors whitespace-nowrap flex items-center gap-1">
+                    <i class="fa-solid fa-pen-to-square"></i> 期班報名
+                </button>
+                <button id="nav-leave" onclick="switchMainTab('leave')" class="main-nav-btn px-3 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors whitespace-nowrap flex items-center gap-1">
+                    <i class="fa-solid fa-calendar-minus"></i> 請假/補課申請
+                </button>
+                <button id="nav-search" onclick="switchMainTab('search')" class="main-nav-btn px-3 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors whitespace-nowrap flex items-center gap-1">
+                    <i class="fa-solid fa-magnifying-glass"></i> 學員即時查詢
+                </button>
+                <button id="nav-admin" onclick="toggleAdminView()" class="hidden sm:flex px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors items-center gap-2 shadow-xs ml-2 whitespace-nowrap">
+                    <i class="fa-solid fa-user-shield"></i> <span id="desktop-admin-btn-text">後台管理</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 主要內容區域 -->
+    <main class="max-w-7xl mx-auto px-4 py-6 sm:py-8 flex-1 w-full">
+
+        <!-- ================= 1. 前台：學員期班報名區塊 ================= -->
+        <div id="section-register" class="space-y-8">
+            
+            <div id="cancellation-notice-container" class="hidden bg-red-50 border border-red-200 rounded-xl p-4 shadow-xs">
+                <h3 class="text-xs sm:text-sm font-bold text-red-800 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation text-red-600"></i>
+                    老師停課 / 代課公告欄
+                </h3>
+                <ul id="cancellation-notice-list" class="text-xs text-red-700 space-y-1 list-disc list-inside"></ul>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- 基本資料 -->
+                    <section class="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
+                            <span class="bg-blue-100 text-blue-700 w-7 h-7 rounded-full flex items-center justify-center text-xs sm:text-sm">1</span>
+                            基本資料
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">姓名 <span class="text-red-500">*</span></label>
+                                <input type="text" id="student-name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="請輸入姓名">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">聯絡電話 <span class="text-red-500">*</span></label>
+                                <input type="tel" id="student-phone" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="0912345678">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">自訂查詢密碼 <span class="text-red-500">*</span> <span class="text-[11px] text-blue-600">(如：生日4碼)</span></label>
+                                <input type="password" id="student-passcode" maxlength="6" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono" placeholder="請設定 4~6 碼查詢密碼">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">電子郵件 (Email) <span class="text-red-500">*</span></label>
+                                <input type="email" id="student-email" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="example@gmail.com">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">緊急聯絡人姓名 <span class="text-red-500">*</span></label>
+                                <input type="text" id="student-emergency-name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="請輸入緊急聯絡人姓名">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">緊急聯絡人電話 <span class="text-red-500">*</span></label>
+                                <input type="tel" id="student-emergency-phone" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="0987654321">
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">學員身分 <span class="text-red-500">*</span></label>
+                                <select id="student-type" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                                    <option value="新生">新生</option>
+                                    <option value="舊生">舊生</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">預計付款方式 <span class="text-red-500">*</span></label>
+                                <select id="student-payment-method" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                                    <option value="匯款/轉帳">匯款 / 轉帳</option>
+                                    <option value="現場現金">現場現金支付</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">帳號/現金末五碼 <span class="text-xs text-slate-400">(轉帳者請填)</span></label>
+                                <input type="text" id="student-bank-last-five" maxlength="5" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="如：01234">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">備註 / 特殊需求 <span class="text-xs text-slate-400">(選填)</span></label>
+                                <textarea id="student-note" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="如有舊生姓名、身體狀況請在此備註"></textarea>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 選擇課程 -->
+                    <section class="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
+                            <span class="bg-blue-100 text-blue-700 w-7 h-7 rounded-full flex items-center justify-center text-xs sm:text-sm">2</span>
+                            選擇課程
+                        </h2>
+                        <div class="flex border-b border-slate-200 mb-4 gap-2 sm:gap-4 overflow-x-auto" id="category-tabs">
+                            <button class="tab-btn active py-2 px-2 text-xs sm:text-sm whitespace-nowrap" onclick="switchCategory('all')">全部課程</button>
+                            <button class="tab-btn py-2 px-2 text-xs sm:text-sm whitespace-nowrap" onclick="switchCategory('一般團課')">一般團課</button>
+                            <button class="tab-btn py-2 px-2 text-xs sm:text-sm whitespace-nowrap" onclick="switchCategory('重訓團班')">重訓團班</button>
+                            <button class="tab-btn py-2 px-2 text-xs sm:text-sm whitespace-nowrap" onclick="switchCategory('空中瑜珈')">空中瑜珈</button>
+                        </div>
+                        <div id="course-list-container" class="space-y-3 max-h-96 overflow-y-auto pr-1">
+                            <p class="text-center text-slate-400 py-8"><i class="fa-solid fa-spinner fa-spin"></i> 載入課程中...</p>
+                        </div>
+                    </section>
+
+                    <!-- 規章條款 -->
+                    <section class="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800 border-b pb-2">報名須知與規章</h2>
+                        <div id="terms-content-container" class="bg-slate-50 p-4 rounded-lg text-xs text-slate-600 max-h-48 overflow-y-auto border border-slate-200 whitespace-pre-line leading-relaxed"></div>
+                        <div class="p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-brands fa-line text-green-500 text-3xl"></i>
+                                <div>
+                                    <p class="text-xs sm:text-sm font-bold text-green-900">加入官方 LINE 帳號</p>
+                                    <p class="text-[11px] sm:text-xs text-green-700">請務必加入 LINE，以便接收請假與課程相關通知。</p>
+                                </div>
+                            </div>
+                            <a href="https://lin.ee/yij0CNLB" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto text-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1 shadow-xs">
+                                <i class="fa-solid fa-user-plus"></i> 點我加入 LINE
+                            </a>
+                        </div>
+                        <div class="space-y-2 pt-2">
+                            <label class="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-medium text-slate-700">
+                                <input type="checkbox" id="terms-agree" class="w-4 h-4 text-blue-600 rounded">
+                                我已詳細閱讀並同意遵守上述報名須知與規章 <span class="text-red-500">*</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-medium text-green-800">
+                                <input type="checkbox" id="line-agree" class="w-4 h-4 text-green-600 rounded">
+                                我已點擊加入官方 LINE 帳號 <span class="text-red-500">*</span>
+                            </label>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- 右側選課明細彙整 -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs sticky top-20 space-y-5">
+                        <h3 class="text-base sm:text-lg font-bold text-slate-800 border-b pb-3 flex justify-between items-center">
+                            已選課程明細
+                            <span id="selected-count-badge" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-semibold">0 堂</span>
+                        </h3>
+                        <div id="selected-summary-list" class="space-y-3 min-h-24 max-h-60 overflow-y-auto">
+                            <p class="text-xs sm:text-sm text-slate-400 text-center py-6">尚未勾選任何課程</p>
+                        </div>
+                        <div class="border-t border-slate-200 pt-4 space-y-2">
+                            <div class="flex justify-between text-xs sm:text-sm text-slate-600">
+                                <span>選購班別數量</span>
+                                <span id="summary-course-count">0 堂</span>
+                            </div>
+                            <div class="flex justify-between text-xs sm:text-sm text-slate-600">
+                                <span>累積總堂數</span>
+                                <span id="summary-class-count">0 堂</span>
+                            </div>
+                            <div class="flex justify-between text-sm sm:text-base font-bold text-slate-900 pt-2 border-t border-dashed">
+                                <span>應繳金額總計</span>
+                                <span id="summary-total-price" class="text-lg sm:text-xl text-blue-600">NT$ 0</span>
+                            </div>
+                        </div>
+                        <button id="submit-btn" onclick="submitRegistration()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm sm:text-base rounded-lg shadow-md transition-all flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-paper-plane"></i> 確認送出報名
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 2. 前台：學員請假 / 補課申請區塊 ================= -->
+        <div id="section-leave" class="hidden max-w-3xl mx-auto space-y-6">
+            <div class="bg-white p-6 sm:p-8 rounded-xl border border-slate-200 shadow-xs space-y-6">
+                <div class="border-b pb-4">
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-check text-blue-600"></i>
+                        請假 / 補課 申請系統
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">請填寫完整的請假或補課資訊，提交後將由後台管理員核准進行安排。</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">請假學員姓名 <span class="text-red-500">*</span></label>
+                        <input type="text" id="leave-name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="請輸入姓名">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">聯絡電話 <span class="text-red-500">*</span></label>
+                        <input type="tel" id="leave-phone" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="請輸入報名時的電話">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">申請類別 <span class="text-red-500">*</span></label>
+                        <select id="leave-type" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <option value="請假">請假申請</option>
+                            <option value="補課">補課申請</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">原報名課程 / 班別 <span class="text-red-500">*</span></label>
+                        <select id="leave-course-select" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <!-- 動態載入課程 -->
+                        </select>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">請假/補課日期 <span class="text-red-500">*</span></label>
+                        <input type="date" id="leave-date" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs sm:text-sm font-medium text-slate-700 mb-1">事由說明 / 補課期望時段備註</label>
+                        <textarea id="leave-reason" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="請詳細說明請假原因或補課需求..."></textarea>
+                    </div>
+                </div>
+
+                <button id="leave-submit-btn" onclick="submitLeaveRequest()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-paper-plane"></i> 送出請假/補課申請
+                </button>
+            </div>
+        </div>
+
+        <!-- ================= 3. 前台：學員即時查詢專區 (自動快存 + 隱私切換) ================= -->
+        <div id="section-search" class="hidden max-w-4xl mx-auto space-y-6">
+            <div class="bg-white p-6 sm:p-8 rounded-xl border border-slate-200 shadow-xs space-y-6">
+                <div>
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-blue-600"></i>
+                        學員個人即時查詢專區
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">為保障個人隱私，請輸入報名時設定的「姓名」、「電話」與「個人查詢密碼」。</p>
+                </div>
+
+                <!-- 安全驗證表單區 -->
+                <div class="p-6 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">姓名</label>
+                            <input type="text" id="search-query-name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="報名姓名">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">聯絡電話</label>
+                            <input type="tel" id="search-query-phone" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="09xxxxxxxx">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">個人查詢密碼</label>
+                            <div class="relative">
+                                <input type="password" id="search-query-passcode" maxlength="6" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono pr-8" placeholder="自訂密碼">
+                                <button type="button" onclick="togglePasscodeVisibility()" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs">
+                                    <i id="eye-icon" class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button id="search-submit-btn" onclick="executeSecureStudentSearch()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-lock-open"></i> 安全驗證並查詢紀錄
+                    </button>
+                    
+                    <p class="text-[11px] text-center text-slate-400 pt-1">
+                        <i class="fa-regular fa-circle-question"></i> 忘記查詢密碼？請私訊 
+                        <a href="https://lin.ee/yij0CNLB" target="_blank" class="text-blue-600 hover:underline font-medium">WAYPOINT 新莊館 LINE 官方帳號</a> 專人為您服務。
+                    </p>
+                </div>
+            </div>
+
+            <!-- 查詢結果區塊 -->
+            <div id="search-result-container" class="hidden space-y-6">
+                <!-- 報名紀錄 -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                    <h3 class="font-bold text-slate-800 border-b pb-2 text-sm sm:text-base flex items-center gap-2">
+                        <i class="fa-solid fa-file-invoice text-blue-600"></i> 已報名期班紀錄
+                    </h3>
+                    <div id="search-result-registrations" class="space-y-3"></div>
+                </div>
+
+                <!-- 請假/補課審核狀態 -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                    <h3 class="font-bold text-slate-800 border-b pb-2 text-sm sm:text-base flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-yellow-600"></i> 請假與補課紀錄
+                    </h3>
+                    <div id="search-result-leaves" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 4. 後台管理系統 (密碼: 1231 保護) ================= -->
+        <div id="section-admin" class="hidden space-y-6">
+            <!-- 後台頂部數據統計區 -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+                    <p class="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase">總報名人次</p>
+                    <p class="text-xl sm:text-2xl font-bold text-slate-800 mt-1" id="stat-total-registrations">0 人</p>
+                </div>
+                <div class="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+                    <p class="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase">預估總營收</p>
+                    <p class="text-xl sm:text-2xl font-bold text-blue-600 mt-1" id="stat-expected-revenue">NT$ 0</p>
+                </div>
+                <div class="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+                    <p class="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase">實收進帳金額</p>
+                    <p class="text-xl sm:text-2xl font-bold text-green-600 mt-1" id="stat-actual-revenue">NT$ 0</p>
+                </div>
+                <div class="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+                    <p class="text-[11px] sm:text-xs font-semibold text-slate-400 uppercase">待處理請假/補課</p>
+                    <p class="text-xl sm:text-2xl font-bold text-yellow-500 mt-1" id="stat-pending-leaves">0 筆</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
+                    <button class="py-3 px-4 font-medium text-xs sm:text-sm border-b-2 border-blue-600 text-blue-600 whitespace-nowrap" id="admin-tab-registrations" onclick="switchAdminTab('registrations')">
+                        <i class="fa-solid fa-list-check"></i> 報名紀錄管理
+                    </button>
+                    <button class="py-3 px-4 font-medium text-xs sm:text-sm text-slate-600 whitespace-nowrap" id="admin-tab-leaves" onclick="switchAdminTab('leaves')">
+                        <i class="fa-solid fa-calendar-minus"></i> 請假與補課審核
+                    </button>
+                    <button class="py-3 px-4 font-medium text-xs sm:text-sm text-slate-600 whitespace-nowrap" id="admin-tab-courses" onclick="switchAdminTab('courses')">
+                        <i class="fa-solid fa-book-bookmark"></i> 課程與班別管理
+                    </button>
+                    <button class="py-3 px-4 font-medium text-xs sm:text-sm text-slate-600 whitespace-nowrap" id="admin-tab-page-content" onclick="switchAdminTab('page-content')">
+                        <i class="fa-solid fa-pen-to-square"></i> 頁面內容管理
+                    </button>
+                </div>
+
+                <!-- 後台 1. 報名紀錄管理 -->
+                <div id="admin-panel-registrations" class="p-4 sm:p-6 space-y-4">
+                    <div class="flex flex-col md:flex-row justify-between gap-4 items-center">
+                        <div class="flex gap-2 w-full md:w-auto">
+                            <input type="text" id="search-keyword" oninput="renderAdminRegistrations()" placeholder="搜尋姓名、電話、單號、密碼..." class="px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm w-full md:w-64">
+                            <select id="filter-status" onchange="renderAdminRegistrations()" class="px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm bg-white">
+                                <option value="all">所有狀態</option>
+                                <option value="未繳費">未繳費</option>
+                                <option value="已繳費">已繳費</option>
+                                <option value="已退費">已退費</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2 w-full md:w-auto justify-end">
+                            <button onclick="fetchCloudData()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm rounded-lg flex items-center gap-1">
+                                <i class="fa-solid fa-rotate"></i> 整理刷新
+                            </button>
+                            <button onclick="exportToExcel()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-medium rounded-lg flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel"></i> 匯出 Excel (含課程分頁)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table class="w-full text-left text-slate-600 text-xs sm:text-sm">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b">
+                                <tr>
+                                    <th class="px-3 py-3 whitespace-nowrap">單號</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">報名時間</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">姓名</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">電話</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">查詢密碼</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">Email</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">緊急聯絡人</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">緊急電話</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">身分</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">付款方式</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">末五碼</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">選購課程</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">應繳金額</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">繳費狀態</th>
+                                    <th class="px-3 py-3 min-w-28">備註</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="registration-table-body" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 後台 2. 請假與補課審核 -->
+                <div id="admin-panel-leaves" class="p-4 sm:p-6 space-y-4 hidden">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-sm sm:text-base">學員請假/補課申請審核區</h3>
+                        <span class="text-xs text-slate-500">可在此即時核准或安排補課</span>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table class="w-full text-left text-slate-600 text-xs sm:text-sm">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b">
+                                <tr>
+                                    <th class="px-3 py-3 whitespace-nowrap">申請時間</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">學員姓名</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">聯絡電話</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">類別</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">原課程</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">日期</th>
+                                    <th class="px-3 py-3 min-w-28">事由 / 備註</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">審核狀態</th>
+                                    <th class="px-3 py-3 min-w-36">管理員回覆/安排</th>
+                                    <th class="px-3 py-3 whitespace-nowrap">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leave-table-body" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 後台 3. 課程與班別管理 -->
+                <div id="admin-panel-courses" class="p-4 sm:p-6 space-y-6 hidden">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm sm:text-base font-bold text-slate-800">所有開課清單</h3>
+                        <button onclick="openCourseModal()" class="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1 shadow-xs">
+                            <i class="fa-solid fa-plus"></i> 新增課程
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                        <table class="w-full text-left text-slate-600 text-xs sm:text-sm">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b">
+                                <tr>
+                                    <th class="px-4 py-3">類別</th>
+                                    <th class="px-4 py-3">課程名稱</th>
+                                    <th class="px-4 py-3">堂數</th>
+                                    <th class="px-4 py-3">費用</th>
+                                    <th class="px-4 py-3">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="course-manage-table-body" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 後台 4. 頁面內容管理 -->
+                <div id="admin-panel-page-content" class="p-4 sm:p-6 space-y-6 hidden">
+                    <div class="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-3">
+                        <h3 class="font-bold text-slate-800 text-xs sm:text-sm">頂部跑馬燈公告內容</h3>
+                        <input type="text" id="edit-announcement-text" class="w-full px-3 py-2 border rounded-lg text-xs sm:text-sm bg-white">
+                        <button onclick="saveAnnouncementConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg font-medium">儲存跑馬燈公告</button>
+                    </div>
+                    <div class="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-bold text-slate-800 text-xs sm:text-sm">停課/代課公告內容</h3>
+                            <button onclick="addCancellationItem()" class="px-3 py-1 bg-red-600 text-white text-xs rounded-lg">+ 新增公告</button>
+                        </div>
+                        <div id="cancellation-edit-container" class="space-y-2"></div>
+                        <button onclick="saveCancellations()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg font-medium">儲存停課公告</button>
+                    </div>
+                    <div class="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-4">
+                        <h3 class="font-bold text-slate-800 text-xs sm:text-sm">報名須知與規章條文編輯</h3>
+                        <textarea id="terms-textarea" rows="8" class="w-full p-3 border rounded-lg text-xs bg-white focus:outline-none"></textarea>
+                        <button onclick="saveTermsConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg font-medium">儲存規章條文</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal 彈窗：新增/編輯課程 -->
+    <div id="course-modal" class="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white p-6 rounded-xl w-full max-w-md space-y-4 shadow-xl border border-slate-100">
+            <h3 class="text-base sm:text-lg font-bold text-slate-800 border-b pb-2" id="modal-title">新增課程</h3>
+            <input type="hidden" id="modal-course-id">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">課程類別</label>
+                <select id="modal-course-category" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm bg-white">
+                    <option value="一般團課">一般團課</option>
+                    <option value="重訓團班">重訓團班</option>
+                    <option value="空中瑜珈">空中瑜珈</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">課程名稱</label>
+                <input type="text" id="modal-course-name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm" placeholder="如：TRX 核心肌力班">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">總堂數</label>
+                    <input type="number" id="modal-course-classes" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm" placeholder="8">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">費用 (NT$)</label>
+                    <input type="number" id="modal-course-price" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm" placeholder="3200">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t">
+                <button onclick="closeCourseModal()" class="px-4 py-2 border border-slate-300 text-slate-600 text-xs sm:text-sm font-medium rounded-lg hover:bg-slate-50">取消</button>
+                <button onclick="saveCourse()" class="px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-blue-700 shadow-xs">儲存課程</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 頁腳 -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 mt-auto">
+        <p>© WAYPOINT 新莊館 版權所有 · 雲端同步管理系統</p>
+    </footer>
+
+    <!-- JavaScript 業務邏輯 -->
+    <script>
+        const ADMIN_PASSWORD = "1231";
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxSCd-QOiMfXyBe0XknPl2V6o17WdLXpjqeLp2ugJUGg7pWZ6xADSf0snm_tyjIx6E5OA/exec";
+
+        // 預設課程
+        let courses = [
+            { id: 1, category: "一般團課", name: "TRX 核心肌力班", classes: 8, price: 3200 },
+            { id: 2, category: "一般團課", name: "皮拉提斯雕塑", classes: 8, price: 3600 },
+            { id: 3, category: "一般團課", name: "筋膜放鬆與伸展", classes: 6, price: 2400 },
+            { id: 4, category: "重訓團班", name: "初階重訓基礎班 (A班)", classes: 8, price: 5600 },
+            { id: 5, category: "重訓團班", name: "女性專屬力量提升班", classes: 8, price: 5600 },
+            { id: 6, category: "空中瑜珈", name: "新手空中瑜珈體驗班", classes: 4, price: 2800 },
+            { id: 7, category: "空中瑜珈", name: "進階空瑜串連舞蹈", classes: 6, price: 4200 }
+        ];
+
+        let registrations = [];
+        let leaveRequests = [];
+        let announcementText = "最新公告：WAYPOINT新莊館 全新期班熱烈招生中！請假補課請提早於系統填寫申請。";
+        let termsText = "【課程須知及注意事項】\n1. 報名後請於 3 日內完成繳費以保留名額。\n2. 請假請於上課前 2 小時至系統提出申請，每期班上限請假 2 次。\n3. 補課需視其他班別空位狀態安排，請配合教練說明。";
+        let cancellationsList = [];
+
+        let selectedCourseIds = new Set();
+        let currentCategory = 'all';
+        let isAdmin = false;
+
+        window.onload = function() {
+            try {
+                renderPageConfigs();
+                renderCourses();
+                renderCourseOptionsForLeave();
+                renderSelectedSummary();
+                loadSavedUserCache();
+                fetchCloudData();
+            } catch (err) {
+                console.error("初始化載入異常:", err);
+            }
+        };
+
+        function loadSavedUserCache() {
+            const savedName = localStorage.getItem('wp_student_name');
+            const savedPhone = localStorage.getItem('wp_student_phone');
+            const savedPasscode = localStorage.getItem('wp_student_passcode');
+
+            if (savedName) {
+                document.getElementById('student-name').value = savedName;
+                document.getElementById('leave-name').value = savedName;
+                document.getElementById('search-query-name').value = savedName;
+            }
+            if (savedPhone) {
+                document.getElementById('student-phone').value = savedPhone;
+                document.getElementById('leave-phone').value = savedPhone;
+                document.getElementById('search-query-phone').value = savedPhone;
+            }
+            if (savedPasscode) {
+                document.getElementById('student-passcode').value = savedPasscode;
+                document.getElementById('search-query-passcode').value = savedPasscode;
+            }
+        }
+
+        function saveUserToCache(name, phone, passcode) {
+            if (name) localStorage.setItem('wp_student_name', name);
+            if (phone) localStorage.setItem('wp_student_phone', phone);
+            if (passcode) localStorage.setItem('wp_student_passcode', passcode);
+        }
+
+        function togglePasscodeVisibility() {
+            const input = document.getElementById('search-query-passcode');
+            const icon = document.getElementById('eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        function executeSecureStudentSearch() {
+            const name = document.getElementById('search-query-name').value.trim();
+            const phone = document.getElementById('search-query-phone').value.trim();
+            const passcode = document.getElementById('search-query-passcode').value.trim();
+
+            if (!name || !phone || !passcode) {
+                alert('請完整輸入姓名、電話與個人密碼！');
+                return;
+            }
+
+            saveUserToCache(name, phone, passcode);
+
+            const myRegs = registrations.filter(r => 
+                (r.name || '').trim() === name && 
+                (r.phone || '').trim() === phone && 
+                ((r.passcode || '').trim() === passcode || passcode === ADMIN_PASSWORD)
+            );
+
+            const myLeaves = leaveRequests.filter(l => 
+                (l.name || '').trim() === name && 
+                (l.phone || '').trim() === phone
+            );
+
+            if (myRegs.length === 0 && passcode !== ADMIN_PASSWORD) {
+                alert('驗證失敗！「姓名、電話、個人密碼」不相符，請重新確認。');
+                return;
+            }
+
+            const container = document.getElementById('search-result-container');
+            if (container) container.classList.remove('hidden');
+
+            renderQueryResultBoxes(myRegs, myLeaves);
+        }
+
+        function renderQueryResultBoxes(myRegs, myLeaves) {
+            const regBox = document.getElementById('search-result-registrations');
+            const leaveBox = document.getElementById('search-result-leaves');
+
+            if (regBox) {
+                regBox.innerHTML = '';
+                if (myRegs.length === 0) {
+                    regBox.innerHTML = `<p class="text-xs text-slate-400 py-3">查無相關期班報名紀錄。</p>`;
+                } else {
+                    myRegs.forEach(r => {
+                        const div = document.createElement('div');
+                        div.className = "p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1";
+                        div.innerHTML = `
+                            <div class="flex justify-between font-bold text-slate-800">
+                                <span>單號：${r.orderNo}</span>
+                                <span class="px-2 py-0.5 rounded ${r.status === '已繳費' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">${r.status}</span>
+                            </div>
+                            <p class="text-slate-600">已選課程：${r.courses}</p>
+                            <p class="text-slate-500">報名金額：NT$ ${Number(r.totalPrice || 0).toLocaleString()}</p>
+                        `;
+                        regBox.appendChild(div);
+                    });
+                }
+            }
+
+            if (leaveBox) {
+                leaveBox.innerHTML = '';
+                if (myLeaves.length === 0) {
+                    leaveBox.innerHTML = `<p class="text-xs text-slate-400 py-3">查無請假/補課紀錄。</p>`;
+                } else {
+                    myLeaves.forEach(l => {
+                        const div = document.createElement('div');
+                        div.className = "p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1";
+                        let badgeClass = "bg-yellow-100 text-yellow-700";
+                        if (l.status === '已核准') badgeClass = "bg-green-100 text-green-700";
+                        if (l.status === '已拒絕') badgeClass = "bg-red-100 text-red-700";
+                        if (l.status === '已完成補課') badgeClass = "bg-blue-100 text-blue-700";
+
+                        div.innerHTML = `
+                            <div class="flex justify-between font-bold text-slate-800">
+                                <span>[${l.type}] ${l.courseName}</span>
+                                <span class="px-2 py-0.5 rounded ${badgeClass}">${l.status}</span>
+                            </div>
+                            <p class="text-slate-600">申請日期：${l.date}</p>
+                            <p class="text-slate-500">事由備註：${l.reason || '無'}</p>
+                            ${l.adminReply ? `<p class="text-blue-600 font-medium pt-1">館方回覆：${l.adminReply}</p>` : ''}
+                        `;
+                        leaveBox.appendChild(div);
+                    });
+                }
+            }
+        }
+
+        function generateOrderSN() {
+            const date = new Date();
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            return `WP${year}${month}${day}${randomNum}`;
+        }
+
+        function switchMainTab(tabName) {
+            ['register', 'leave', 'search', 'admin'].forEach(tab => {
+                const sec = document.getElementById(`section-${tab}`);
+                const btn = document.getElementById(`nav-${tab}`);
+                if (sec) sec.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
+            });
+
+            const targetSec = document.getElementById(`section-${tabName}`);
+            const targetNav = document.getElementById(`nav-${tabName}`);
+            if (targetSec) targetSec.classList.remove('hidden');
+            if (targetNav) targetNav.classList.add('active');
+
+            if (tabName === 'register') {
+                renderPageConfigs();
+                renderCourses();
+            }
+
+            if (tabName === 'search') {
+                const name = document.getElementById('search-query-name').value.trim();
+                const phone = document.getElementById('search-query-phone').value.trim();
+                const passcode = document.getElementById('search-query-passcode').value.trim();
+                if (name && phone && passcode) executeSecureStudentSearch();
+            }
+        }
+
+        function toggleAdminView() {
+            if (!isAdmin) {
+                const pwd = prompt('請輸入 WAYPOINT新莊館 後台管理密碼：', '');
+                if (pwd === ADMIN_PASSWORD) {
+                    isAdmin = true;
+                    document.getElementById('desktop-admin-btn-text').textContent = '退出後台';
+                    document.getElementById('mobile-admin-btn-text').textContent = '退出';
+                    switchMainTab('admin');
+                    renderAdminRegistrations();
+                    renderAdminLeaves();
+                    renderAdminCourses();
+                    renderAdminPageContentEditors();
+                } else if (pwd !== null) {
+                    alert('密碼錯誤！無法進入後台。');
+                }
+            } else {
+                isAdmin = false;
+                document.getElementById('desktop-admin-btn-text').textContent = '後台管理';
+                document.getElementById('mobile-admin-btn-text').textContent = '後台';
+                switchMainTab('register');
+            }
+        }
+
+        // 從雲端同步資料並「立即重繪前台 UI」
+        function fetchCloudData() {
+            const cacheBuster = new Date().getTime();
+            fetch(`${GAS_WEB_APP_URL}?_t=${cacheBuster}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.config) {
+                        applyConfigToUI(data.config);
+                    }
+                    
+                    if (data && Array.isArray(data.registrations)) {
+                        registrations = data.registrations;
+                    }
+                    
+                    if (data && Array.isArray(data.leaveRequests)) {
+                        leaveRequests = data.leaveRequests;
+                    } else if (data && Array.isArray(data.leaves)) {
+                        leaveRequests = data.leaves;
+                    }
+
+                    renderPageConfigs();
+                    renderCourses();
+                    renderCourseOptionsForLeave();
+
+                    if (isAdmin) {
+                        renderAdminRegistrations();
+                        renderAdminLeaves();
+                        renderAdminPageContentEditors();
+                    }
+                    updateAdminStats();
+                })
+                .catch(err => {
+                    console.log("雲端資料連線提示：使用本地資料保護", err);
+                    updateAdminStats();
+                });
+        }
+
+        function saveAdminConfigToCloud() {
+            const currentConfig = {
+                courses: courses,
+                announcement: announcementText,
+                termsText: termsText,
+                cancellations: cancellationsList
+            };
+
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'saveConfig', config: currentConfig })
+            })
+            .then(() => {
+                renderPageConfigs();
+                renderCourses();
+            })
+            .catch(err => console.log("雲端同步錯誤", err));
+        }
+
+        function applyConfigToUI(config) {
+            if (config.courses && Array.isArray(config.courses)) courses = config.courses;
+            if (config.announcement) announcementText = config.announcement;
+            if (config.termsText) termsText = config.termsText;
+            if (config.cancellations && Array.isArray(config.cancellations)) cancellationsList = config.cancellations;
+
+            renderPageConfigs();
+            renderCourses();
+            renderCourseOptionsForLeave();
+        }
+
+        function renderCourses() {
+            const container = document.getElementById('course-list-container');
+            if (!container) return;
+            container.innerHTML = '';
+            const filtered = currentCategory === 'all' ? courses : courses.filter(c => c.category === currentCategory);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="text-center text-slate-400 py-8 text-xs sm:text-sm">目前無相關課程</p>`;
+                return;
+            }
+
+            filtered.forEach(course => {
+                const isChecked = selectedCourseIds.has(course.id);
+                const card = document.createElement('div');
+                card.className = `p-3.5 sm:p-4 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${isChecked ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`;
+                card.onclick = (e) => { if (e.target.tagName !== 'INPUT') toggleCourseSelection(course.id); };
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleCourseSelection(${course.id})" class="w-4 h-4 text-blue-600 rounded">
+                        <div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-100 rounded text-slate-600 mb-1 inline-block">${course.category}</span>
+                            <h4 class="font-bold text-slate-800 text-xs sm:text-sm">${course.name}</h4>
+                            <p class="text-[11px] sm:text-xs text-slate-500">共 ${course.classes} 堂</p>
+                        </div>
+                    </div>
+                    <div class="text-right font-bold text-blue-600 text-xs sm:text-sm">NT$ ${Number(course.price).toLocaleString()}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderCourseOptionsForLeave() {
+            const select = document.getElementById('leave-course-select');
+            if (!select) return;
+            select.innerHTML = '';
+            courses.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = `${c.name} (${c.classes} 堂)`;
+                select.appendChild(opt);
+            });
+        }
+
+        function switchCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('#category-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
+            if (event && event.target) event.target.classList.add('active');
+            renderCourses();
+        }
+
+        function toggleCourseSelection(id) {
+            if (selectedCourseIds.has(id)) selectedCourseIds.delete(id);
+            else selectedCourseIds.add(id);
+            renderCourses();
+            renderSelectedSummary();
+        }
+
+        function renderSelectedSummary() {
+            const container = document.getElementById('selected-summary-list');
+            if (!container) return;
+            container.innerHTML = '';
+            const selected = courses.filter(c => selectedCourseIds.has(c.id));
+
+            document.getElementById('selected-count-badge').textContent = `${selected.length} 堂`;
+            document.getElementById('summary-course-count').textContent = `${selected.length} 堂`;
+
+            if (selected.length === 0) {
+                container.innerHTML = `<p class="text-xs sm:text-sm text-slate-400 text-center py-6">尚未勾選任何課程</p>`;
+                document.getElementById('summary-class-count').textContent = `0 堂`;
+                document.getElementById('summary-total-price').textContent = `NT$ 0`;
+                return;
+            }
+
+            let totalClasses = 0, totalPrice = 0;
+            selected.forEach(c => {
+                totalClasses += Number(c.classes);
+                totalPrice += Number(c.price);
+                const item = document.createElement('div');
+                item.className = "flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded border border-slate-200";
+                item.innerHTML = `
+                    <div>
+                        <p class="font-bold text-slate-800">${c.name}</p>
+                        <p class="text-slate-500">${c.classes} 堂 · NT$ ${Number(c.price).toLocaleString()}</p>
+                    </div>
+                    <button onclick="toggleCourseSelection(${c.id})" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                `;
+                container.appendChild(item);
+            });
+
+            document.getElementById('summary-class-count').textContent = `${totalClasses} 堂`;
+            document.getElementById('summary-total-price').textContent = `NT$ ${totalPrice.toLocaleString()}`;
+        }
+
+        function submitRegistration() {
+            const submitBtn = document.getElementById('submit-btn');
+            const name = document.getElementById('student-name').value.trim();
+            const phone = document.getElementById('student-phone').value.trim();
+            const passcode = document.getElementById('student-passcode').value.trim();
+            const email = document.getElementById('student-email').value.trim();
+            const emergencyName = document.getElementById('student-emergency-name').value.trim();
+            const emergencyPhone = document.getElementById('student-emergency-phone').value.trim();
+            const type = document.getElementById('student-type').value;
+            const paymentMethod = document.getElementById('student-payment-method').value;
+            const bankLastFive = document.getElementById('student-bank-last-five').value.trim();
+            const note = document.getElementById('student-note').value.trim();
+
+            if (!name || !phone || !passcode || !email || !emergencyName || !emergencyPhone) {
+                alert('請完整填寫姓名、電話、個人查詢密碼與所有聯絡資訊！');
+                return;
+            }
+            if (passcode.length < 4) {
+                alert('個人查詢密碼請設定至少 4 位數！');
+                return;
+            }
+            if (selectedCourseIds.size === 0) {
+                alert('請至少選擇一門課程！');
+                return;
+            }
+            if (!document.getElementById('terms-agree').checked || !document.getElementById('line-agree').checked) {
+                alert('請勾選同意規章與確認加入 LINE 官方帳號！');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 報名處理中...`;
+
+            saveUserToCache(name, phone, passcode);
+
+            const selectedCourses = courses.filter(c => selectedCourseIds.has(c.id));
+            const totalPrice = selectedCourses.reduce((sum, c) => sum + Number(c.price), 0);
+            const orderNo = generateOrderSN();
+
+            const payload = {
+                action: 'addRegistration',
+                orderNo: orderNo,
+                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+                name: name,
+                phone: phone,
+                passcode: passcode,
+                email: email,
+                emergencyName: emergencyName,
+                emergencyPhone: emergencyPhone,
+                type: type,
+                paymentMethod: paymentMethod,
+                bankLastFive: bankLastFive,
+                courses: selectedCourses.map(c => c.name).join(', '),
+                totalPrice: totalPrice,
+                status: '未繳費',
+                note: note
+            };
+
+            registrations.unshift(payload);
+
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            }).finally(() => {
+                alert(`[WAYPOINT新莊館] 報名成功！\n報名單號：${orderNo}\n姓名：${name}\n查詢密碼：${passcode}\n應繳金額：NT$ ${totalPrice.toLocaleString()}`);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> 確認送出報名`;
+                resetRegistrationForm();
+            });
+        }
+
+        function resetRegistrationForm() {
+            document.getElementById('student-bank-last-five').value = '';
+            document.getElementById('student-note').value = '';
+            document.getElementById('terms-agree').checked = false;
+            document.getElementById('line-agree').checked = false;
+            selectedCourseIds.clear();
+            renderCourses();
+            renderSelectedSummary();
+            updateAdminStats();
+        }
+
+        function submitLeaveRequest() {
+            const leaveBtn = document.getElementById('leave-submit-btn');
+            const name = document.getElementById('leave-name').value.trim();
+            const phone = document.getElementById('leave-phone').value.trim();
+            const type = document.getElementById('leave-type').value;
+            const courseName = document.getElementById('leave-course-select').value;
+            const date = document.getElementById('leave-date').value;
+            const reason = document.getElementById('leave-reason').value.trim();
+
+            if (!name || !phone || !date) {
+                alert('請完整填寫姓名、電話與請假/補課日期！');
+                return;
+            }
+
+            leaveBtn.disabled = true;
+            leaveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 申請處理中...`;
+
+            const payload = {
+                action: 'addLeaveRequest',
+                id: Date.now(),
+                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+                name: name,
+                phone: phone,
+                type: type,
+                courseName: courseName,
+                date: date,
+                reason: reason,
+                status: '待審核',
+                adminReply: ''
+            };
+
+            leaveRequests.unshift(payload);
+
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            }).finally(() => {
+                alert(`[WAYPOINT新莊館] ${type}申請已成功送出！\n將為您切換至查詢頁面。`);
+                leaveBtn.disabled = false;
+                leaveBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> 送出請假/補課申請`;
+                document.getElementById('leave-date').value = '';
+                document.getElementById('leave-reason').value = '';
+                updateAdminStats();
+                switchMainTab('search');
+            });
+        }
+
+        function switchAdminTab(tab) {
+            ['registrations', 'leaves', 'courses', 'page-content'].forEach(t => {
+                const p = document.getElementById(`admin-panel-${t}`);
+                const btn = document.getElementById(`admin-tab-${t}`);
+                if (p) p.classList.add('hidden');
+                if (btn) btn.className = 'py-3 px-4 font-medium text-xs sm:text-sm text-slate-600 whitespace-nowrap';
+            });
+            const targetP = document.getElementById(`admin-panel-${tab}`);
+            const targetBtn = document.getElementById(`admin-tab-${tab}`);
+            if (targetP) targetP.classList.remove('hidden');
+            if (targetBtn) targetBtn.className = 'py-3 px-4 font-medium text-xs sm:text-sm border-b-2 border-blue-600 text-blue-600 whitespace-nowrap';
+        }
+
+        function renderAdminRegistrations() {
+            const tbody = document.getElementById('registration-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const keyword = document.getElementById('search-keyword').value.toLowerCase();
+            const filterStatus = document.getElementById('filter-status').value;
+
+            const filtered = registrations.filter(r => {
+                const matchKw = (r.name || '').toLowerCase().includes(keyword) || 
+                                (r.phone || '').includes(keyword) || 
+                                (r.passcode || '').includes(keyword) || 
+                                (r.orderNo || '').toLowerCase().includes(keyword) ||
+                                (r.note || '').toLowerCase().includes(keyword);
+                const matchStatus = filterStatus === 'all' || r.status === filterStatus;
+                return matchKw && matchStatus;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="16" class="text-center py-6 text-slate-400 text-xs">無相關紀錄</td></tr>`;
+                return;
+            }
+
+            filtered.forEach((r) => {
+                const realIndex = registrations.indexOf(r);
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="px-3 py-3 font-mono text-xs font-bold text-blue-600">${r.orderNo || ''}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${r.timestamp || ''}</td>
+                    <td class="px-3 py-3 font-medium text-slate-900 whitespace-nowrap">${r.name || ''}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${r.phone || ''}</td>
+                    <td class="px-3 py-3 text-xs font-mono font-bold text-slate-700 whitespace-nowrap">${r.passcode || '未設'}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${r.email || ''}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${r.emergencyName || ''}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${r.emergencyPhone || ''}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap"><span class="px-2 py-0.5 rounded bg-slate-100">${r.type || '新生'}</span></td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${r.paymentMethod || '轉帳'}</td>
+                    <td class="px-3 py-3">
+                        <input type="text" value="${r.bankLastFive || ''}" maxlength="5" placeholder="補填"
+                            onblur="updateBankLastFive(${realIndex}, this.value)"
+                            class="w-16 px-1.5 py-1 text-xs border rounded font-mono bg-white">
+                    </td>
+                    <td class="px-3 py-3 text-xs max-w-xs truncate" title="${r.courses || ''}">${r.courses || ''}</td>
+                    <td class="px-3 py-3 font-bold text-xs text-slate-800 whitespace-nowrap">NT$ ${Number(r.totalPrice || 0).toLocaleString()}</td>
+                    <td class="px-3 py-3">
+                        <select onchange="updateRegistrationStatus(${realIndex}, this.value)" class="px-2 py-1 rounded text-xs border font-medium bg-white">
+                            <option value="未繳費" ${r.status === '未繳費' ? 'selected' : ''}>未繳費</option>
+                            <option value="已繳費" ${r.status === '已繳費' ? 'selected' : ''}>已繳費</option>
+                            <option value="已退費" ${r.status === '已退費' ? 'selected' : ''}>已退費</option>
+                        </select>
+                    </td>
+                    <td class="px-3 py-3 text-xs text-slate-700 min-w-28">${r.note || '-'}</td>
+                    <td class="px-3 py-3">
+                        <button onclick="deleteRegistration(${realIndex})" class="text-red-500 hover:text-red-700 text-xs">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            updateAdminStats();
+        }
+
+        function renderAdminLeaves() {
+            const tbody = document.getElementById('leave-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (leaveRequests.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-400 text-xs">目前無請假/補課申請單</td></tr>`;
+                return;
+            }
+
+            leaveRequests.forEach((l, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${l.timestamp || ''}</td>
+                    <td class="px-3 py-3 font-medium text-slate-900 whitespace-nowrap">${l.name}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${l.phone}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap"><span class="px-2 py-0.5 rounded ${l.type === '請假' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}">${l.type}</span></td>
+                    <td class="px-3 py-3 text-xs font-medium text-slate-800">${l.courseName}</td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap">${l.date}</td>
+                    <td class="px-3 py-3 text-xs text-slate-600">${l.reason || '無'}</td>
+                    <td class="px-3 py-3">
+                        <select onchange="updateLeaveStatus(${index}, this.value)" class="px-2 py-1 rounded text-xs border font-medium bg-white">
+                            <option value="待審核" ${l.status === '待審核' ? 'selected' : ''}>待審核</option>
+                            <option value="已核准" ${l.status === '已核准' ? 'selected' : ''}>已核准</option>
+                            <option value="已拒絕" ${l.status === '已拒絕' ? 'selected' : ''}>已拒絕</option>
+                            <option value="已完成補課" ${l.status === '已完成補課' ? 'selected' : ''}>已完成補課</option>
+                        </select>
+                    </td>
+                    <td class="px-3 py-3">
+                        <input type="text" value="${l.adminReply || ''}" placeholder="填寫處理說明/安排" 
+                            onblur="updateLeaveReply(${index}, this.value)"
+                            class="w-full px-2 py-1 text-xs border rounded bg-white">
+                    </td>
+                    <td class="px-3 py-3">
+                        <button onclick="deleteLeaveRequest(${index})" class="text-red-500 hover:text-red-700 text-xs">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderAdminCourses() {
+            const tbody = document.getElementById('course-manage-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            courses.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="px-4 py-3 text-xs"><span class="px-2 py-0.5 rounded bg-slate-100 font-semibold">${c.category}</span></td>
+                    <td class="px-4 py-3 font-bold text-slate-800 text-xs sm:text-sm">${c.name}</td>
+                    <td class="px-4 py-3 text-xs">${c.classes} 堂</td>
+                    <td class="px-4 py-3 font-bold text-xs text-blue-600">NT$ ${Number(c.price).toLocaleString()}</td>
+                    <td class="px-4 py-3 space-x-2">
+                        <button onclick="openCourseModal(${c.id})" class="text-blue-600 hover:text-blue-800 text-xs font-medium">編輯</button>
+                        <button onclick="deleteCourse(${c.id})" class="text-red-500 hover:text-red-700 text-xs font-medium">刪除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openCourseModal(id = null) {
+            document.getElementById('course-modal').classList.remove('hidden');
+            if (id) {
+                const c = courses.find(item => item.id === id);
+                document.getElementById('modal-title').textContent = '編輯課程';
+                document.getElementById('modal-course-id').value = c.id;
+                document.getElementById('modal-course-category').value = c.category;
+                document.getElementById('modal-course-name').value = c.name;
+                document.getElementById('modal-course-classes').value = c.classes;
+                document.getElementById('modal-course-price').value = c.price;
+            } else {
+                document.getElementById('modal-title').textContent = '新增課程';
+                document.getElementById('modal-course-id').value = '';
+                document.getElementById('modal-course-category').value = '一般團課';
+                document.getElementById('modal-course-name').value = '';
+                document.getElementById('modal-course-classes').value = '';
+                document.getElementById('modal-course-price').value = '';
+            }
+        }
+
+        function closeCourseModal() {
+            document.getElementById('course-modal').classList.add('hidden');
+        }
+
+        function saveCourse() {
+            const id = document.getElementById('modal-course-id').value;
+            const category = document.getElementById('modal-course-category').value;
+            const name = document.getElementById('modal-course-name').value.trim();
+            const classes = Number(document.getElementById('modal-course-classes').value);
+            const price = Number(document.getElementById('modal-course-price').value);
+
+            if (!name || !classes || !price) {
+                alert('請完整填寫所有課程欄位！');
+                return;
+            }
+
+            if (id) {
+                const index = courses.findIndex(c => c.id === Number(id));
+                if (index !== -1) courses[index] = { id: Number(id), category, name, classes, price };
+            } else {
+                courses.push({ id: Date.now(), category, name, classes, price });
+            }
+
+            closeCourseModal();
+            renderCourses();
+            renderCourseOptionsForLeave();
+            renderAdminCourses();
+            saveAdminConfigToCloud();
+            alert('課程已儲存並同步至雲端！');
+        }
+
+        function deleteCourse(id) {
+            if (confirm('確定要刪除這門課程嗎？')) {
+                courses = courses.filter(c => c.id !== id);
+                renderCourses();
+                renderCourseOptionsForLeave();
+                renderAdminCourses();
+                saveAdminConfigToCloud();
+            }
+        }
+
+        function renderAdminPageContentEditors() {
+            document.getElementById('edit-announcement-text').value = announcementText;
+            document.getElementById('terms-textarea').value = termsText;
+
+            const cancelEditContainer = document.getElementById('cancellation-edit-container');
+            if (!cancelEditContainer) return;
+            cancelEditContainer.innerHTML = '';
+            cancellationsList.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = "flex gap-2 items-center";
+                div.innerHTML = `
+                    <input type="text" value="${item}" class="cancellation-input w-full px-3 py-1.5 border border-slate-300 rounded text-xs bg-white">
+                    <button onclick="removeCancellationItem(${index})" class="text-red-500 hover:text-red-700 text-xs px-2 py-1 border border-red-200 rounded bg-red-50 whitespace-nowrap">刪除</button>
+                `;
+                cancelEditContainer.appendChild(div);
+            });
+        }
+
+        function saveAnnouncementConfig() {
+            announcementText = document.getElementById('edit-announcement-text').value.trim();
+            renderPageConfigs();
+            saveAdminConfigToCloud();
+            alert('跑馬燈公告已儲存並同步！');
+        }
+
+        function addCancellationItem() {
+            cancellationsList.push("新停課通知：請輸入日期與停課班別");
+            renderAdminPageContentEditors();
+        }
+
+        function removeCancellationItem(index) {
+            cancellationsList.splice(index, 1);
+            renderAdminPageContentEditors();
+        }
+
+        function saveCancellations() {
+            const inputs = document.querySelectorAll('.cancellation-input');
+            cancellationsList = Array.from(inputs).map(input => input.value.trim()).filter(val => val !== '');
+            renderPageConfigs();
+            renderAdminPageContentEditors();
+            saveAdminConfigToCloud();
+            alert('停課公告已儲存並同步！');
+        }
+
+        function saveTermsConfig() {
+            termsText = document.getElementById('terms-textarea').value;
+            renderPageConfigs();
+            saveAdminConfigToCloud();
+            alert('報名規章已儲存並同步！');
+        }
+
+        function updateBankLastFive(index, newValue) {
+            registrations[index].bankLastFive = newValue.trim();
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'updateRegistration', registration: registrations[index] })
+            });
+        }
+
+        function updateRegistrationStatus(index, newStatus) {
+            registrations[index].status = newStatus;
+            updateAdminStats();
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'updateRegistration', registration: registrations[index] })
+            });
+        }
+
+        function deleteRegistration(index) {
+            if (confirm('確定要刪除該筆報名紀錄嗎？')) {
+                registrations.splice(index, 1);
+                renderAdminRegistrations();
+                updateAdminStats();
+            }
+        }
+
+        function updateLeaveStatus(index, newStatus) {
+            leaveRequests[index].status = newStatus;
+            updateAdminStats();
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'updateLeaveRequest', leaveRequest: leaveRequests[index] })
+            });
+        }
+
+        function updateLeaveReply(index, newReply) {
+            leaveRequests[index].adminReply = newReply.trim();
+            fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'updateLeaveRequest', leaveRequest: leaveRequests[index] })
+            });
+        }
+
+        function deleteLeaveRequest(index) {
+            if (confirm('確定要刪除此筆請假申請紀錄嗎？')) {
+                leaveRequests.splice(index, 1);
+                renderAdminLeaves();
+                updateAdminStats();
+            }
+        }
+
+        function updateAdminStats() {
+            const regCountEl = document.getElementById('stat-total-registrations');
+            if (regCountEl) regCountEl.textContent = `${registrations.length} 人`;
+
+            const expected = registrations.reduce((sum, r) => sum + Number(r.totalPrice || 0), 0);
+            const expEl = document.getElementById('stat-expected-revenue');
+            if (expEl) expEl.textContent = `NT$ ${expected.toLocaleString()}`;
+
+            const actual = registrations.filter(r => r.status === '已繳費').reduce((sum, r) => sum + Number(r.totalPrice || 0), 0);
+            const actEl = document.getElementById('stat-actual-revenue');
+            if (actEl) actEl.textContent = `NT$ ${actual.toLocaleString()}`;
+
+            const pendingLeaves = leaveRequests.filter(l => l.status === '待審核').length;
+            const pendingEl = document.getElementById('stat-pending-leaves');
+            if (pendingEl) pendingEl.textContent = `${pendingLeaves} 筆`;
+        }
+
+        // 強制渲染前台跑馬燈與規章文字
+        function renderPageConfigs() {
+            const annTextEl = document.getElementById('announcement-text');
+            if (annTextEl) annTextEl.textContent = announcementText;
+
+            const termsTextEl = document.getElementById('terms-content-container');
+            if (termsTextEl) termsTextEl.textContent = termsText;
+
+            const cancelContainer = document.getElementById('cancellation-notice-container');
+            const cancelListUl = document.getElementById('cancellation-notice-list');
+            if (!cancelContainer || !cancelListUl) return;
+
+            cancelListUl.innerHTML = '';
+            
+            if (cancellationsList.length > 0) {
+                cancelContainer.classList.remove('hidden');
+                cancellationsList.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    cancelListUl.appendChild(li);
+                });
+            } else {
+                cancelContainer.classList.add('hidden');
+            }
+        }
+
+        // 匯出 Excel (含獨立課程分頁點名表)
+        function exportToExcel() {
+            if (!registrations || registrations.length === 0) {
+                alert('目前無報名紀錄可供匯出！');
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+
+            const summaryData = registrations.map(r => ({
+                "報名單號": r.orderNo ? `'${r.orderNo}` : '',
+                "報名時間": r.timestamp || '',
+                "姓名": r.name || '',
+                "電話": r.phone ? `'${r.phone}` : '',
+                "查詢密碼": r.passcode ? `'${r.passcode}` : '',
+                "Email": r.email || '',
+                "緊急聯絡人": r.emergencyName || '',
+                "緊急電話": r.emergencyPhone ? `'${r.emergencyPhone}` : '',
+                "身分": r.type || '',
+                "付款方式": r.paymentMethod || '',
+                "末五碼": r.bankLastFive ? `'${r.bankLastFive}` : '',
+                "選購課程": r.courses || '',
+                "應繳金額": r.totalPrice || 0,
+                "繳費狀態": r.status || '未繳費',
+                "備註": r.note || ''
+            }));
+            
+            const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+            XLSX.utils.book_append_sheet(wb, summarySheet, "報名總表");
+
+            const courseMap = {};
+            registrations.forEach(r => {
+                if (!r.courses) return;
+                const courseNames = r.courses.split(',').map(s => s.trim());
+                courseNames.forEach(cName => {
+                    if (!cName) return;
+                    if (!courseMap[cName]) courseMap[cName] = [];
+                    courseMap[cName].push(r);
+                });
+            });
+
+            Object.keys(courseMap).forEach(courseName => {
+                const classData = courseMap[courseName].map(r => ({
+                    "報名單號": r.orderNo ? `'${r.orderNo}` : '',
+                    "學員姓名": r.name || '',
+                    "電話": r.phone ? `'${r.phone}` : '',
+                    "身分": r.type || '',
+                    "付款方式": r.paymentMethod || '',
+                    "繳費狀態": r.status || '未繳費',
+                    "備註/身體狀況": r.note || ''
+                }));
+
+                const classSheet = XLSX.utils.json_to_sheet(classData);
+                let safeSheetName = courseName.replace(/[:\\/?*\[\]]/g, "_").slice(0, 30);
+                XLSX.utils.book_append_sheet(wb, classSheet, safeSheetName);
+            });
+
+            if (leaveRequests.length > 0) {
+                const leaveData = leaveRequests.map(l => ({
+                    "申請時間": l.timestamp || '',
+                    "學員姓名": l.name || '',
+                    "電話": l.phone ? `'${l.phone}` : '',
+                    "類別": l.type || '',
+                    "課程名稱": l.courseName || '',
+                    "日期": l.date || '',
+                    "事由": l.reason || '',
+                    "狀態": l.status || '',
+                    "管理員回覆": l.adminReply || ''
+                }));
+                const leaveSheet = XLSX.utils.json_to_sheet(leaveData);
+                XLSX.utils.book_append_sheet(wb, leaveSheet, "請假補課紀錄");
+            }
+
+            const dateStr = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `WAYPOINT新莊館_期班名冊與課程分頁_${dateStr}.xlsx`);
+        }
+    </script>
+</body>
+</html>
